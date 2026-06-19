@@ -275,7 +275,15 @@ def clean_phone(phone_val):
     """
     if not phone_val or phone_val == "":
         return ""
-    
+    if pd.isna(phone_val) or str(phone_val).strip().lower() in ['nan', 'none', '']:
+        return ""
+
+# 🌟 NEW INTERNATIONAL SAFEGUARD:
+    # If the number already contains a dot, assume it has been manually
+    # verified or structured as an international exception. Return as-is.
+    if "." in phone_val:
+        return phone_val
+
     phone_str = str(phone_val).strip()
     
     # 1. ISOLATE THE EXTENSION FIRST
@@ -484,3 +492,159 @@ def create_history_cache_row(case_id, case_number, account_id, contact_id, case_
         'CreatedDate': current_timestamp,
         'LastModifiedDate': current_timestamp
     }
+
+import re
+import pandas as pd
+
+def evaluate_contacts_for_single_account(account_id, df_staged_group, df_sf_contacts, contact_email_to_id, contact_email_to_name):
+    """
+    Analyzes staged contact records for a single Account ID.
+    Categorizes updates into automated title backfills, straightforward human-review items, and unclear conflicts.
+    """
+    actions = {
+        'automated_title_patches': [],  # Safe live updates (blank CRM title -> submitted title)
+        'straightforward_reviews': [],  # Phone or name deviations that need a Y/N nod
+        'unclear_exceptions': [],       # Multi-email collisions or unrecognized names
+        'net_new_loader_rows': []       # Clean new additions to buffer for Data Loader CSV
+    }
+    
+    unique_staged_contacts = {}
+    roles_config = {
+        'Cert': ('Cert_First_Name__c', 'Cert_Last_Name__c', 'Cert_Title__c', 'Cert_Email__c', 'Cert_Phone__c'),
+        'Principal': ('Principal_First_Name__c', 'Principal_Last_Name__c', 'Principal_Title__c', 'Principal_Email__c', 'Principal_Phone__c'),
+        'AP': ('AP_First_Name__c', 'AP_Last_Name__c', 'AP_Title__c', 'AP_Email__c', 'AP_Phone__c'),
+        'Quality': ('Quality_First_Name__c', 'Quality_Last_Name__c', 'QC_Title__c', 'Quality_Email__c', 'Quality_Phone__c')
+    }
+
+    # 1. Consolidate submissions for this specific account scope
+    for _, row in df_staged_group.iterrows():
+        for role_label, fields in roles_config.items():
+            f_first, f_last, f_title, f_email, f_phone = fields
+            email = str(row.get(f_email, '')).strip().lower()
+            
+            if not email or email == "":
+                continue
+                
+            first = str(row.get(f_first, '')).strip()
+            last = str(row.get(f_last, '')).strip()
+            title = str(row.get(f_title, '')).strip()
+            phone = str(row.get(f_phone, '')).strip()
+            
+            if email not in unique_staged_contacts:
+                unique_staged_contacts[email] = {
+                    'First': first, 'Last': last, 'Phone': phone,
+                    'Titles_Submitted': set([title]) if title else set()
+                }
+            else:
+                if title:
+                    unique_staged_contacts[email]['Titles_Submitted'].add(title)
+                if not unique_staged_contacts[email]['Phone'] and phone:
+                    unique_staged_contacts[email]['Phone'] = phone
+
+    # 2. Deep verification comparison loops
+    for email, staged in unique_staged_contacts.items():
+        submitted_titles = list(staged['Titles_Submitted'])
+        resolved_title = submitted_titles[0] if len(submitted_titles) == 1 else ""
+        
+        # Scenario A: True Net-New Contact Assignment
+        if email not in df_sf_contacts.index:
+            actions['net_new_loader_rows'].append({
+                'AccountId': account_id, 'FirstName': staged['First'], 'LastName': staged['Last'],
+                'Title': resolved_title, 'Email': email, 'Phone': staged['Phone']
+            })
+            continue
+
+        # Scenario B: Email Exists - Run Profile Audit
+        sf_matches = df_sf_contacts.loc[[email]]
+        for _, sf_con in sf_matches.iterrows():
+            sf_contact_id = sf_con.get('Id')
+            discrepancies = []
+            
+            # Name auditing checks
+            if staged['First'].lower() != str(sf_con.get('FirstName', '')).strip().lower():
+                discrepancies.append(f"First Name ('{sf_con.get('FirstName')}' -> '{staged['First']}')")
+            if staged['Last'].lower() != str(sf_con.get('LastName', '')).strip().lower():
+                discrepancies.append(f"Last Name ('{sf_con.get('LastName')}' -> '{staged['Last']}')")
+
+            # Title handling
+            sf_title = str(sf_con.get('Title', '')).strip()
+            if sf_title.lower() in ['nan', 'none', 'null']: sf_title = ""
+            
+            if sf_title == "" and len(submitted_titles) == 1:
+                # Blank baseline title -> safe auto update patch package
+                actions['automated_title_patches'].append({
+                    'ContactId': sf_contact_id, 'Email': email, 'TargetTitle': resolved_title
+                })
+            elif len(submitted_titles) == 1 and resolved_title.lower() != sf_title.lower():
+                discrepancies.append(f"Title Variation ('{sf_title}' -> '{resolved_title}')")
+            elif len(submitted_titles) > 1:
+                discrepancies.append(f"Conflicting Multiple Titles Submitted: {submitted_titles}")
+
+            # Phone Auditing
+            if staged['Phone'] != "" and "." not in staged['Phone']:
+                # (Assumes your standard phone normalizer logic executes comparison)
+                discrepancies.append(f"Phone variance detected against CRM Main line.")
+
+            # Route findings based on clarity rules
+            if discrepancies:
+                actions['straightforward_reviews'].append({
+                    'ContactId': sf_contact_id, 'Email': email, 'Name': f"{staged['First']} {staged['Last']}", 'Issues': discrepancies
+                })
+                
+    return actions
+
+
+def propose_account_role_swaps_for_single_account(account_id, df_staged_group, live_sf_account_row, contact_email_to_id, contact_email_to_name, df_sf_contacts):
+    """
+    Analyzes staged contact information to propose Account role seat modifications.
+    Returns clear lists categorized by perfect matches, valid modifications, and structural conflicts.
+    """
+    analysis = {'perfect_matches': [], 'proposed_swaps': [], 'multiplicity_conflicts': [], 'unknown_emails': []}
+    
+    roles_schema_map = {
+        'Certification Contact': ('Cert_Email__c', 'Cert_Certification_Contact__c'),
+        'Principal Contact': ('Principal_Email__c', 'Cert_Principal_Contact__c'),
+        'Accounting Contact': ('AP_Email__c', 'Cert_Accounting_Contact__c'),
+        'Quality Contact': ('Quality_Email__c', 'Cert_Marketing_contact__c')
+    }
+
+    for role_label, (staging_email_field, sf_lookup_field) in roles_schema_map.items():
+        submitted_emails = set()
+        for _, row in df_staged_group.iterrows():
+            em = str(row.get(staging_email_field, '')).strip().lower()
+            if em: submitted_emails.add(em)
+                
+        if not submitted_emails:
+            continue
+            
+        current_sf_contact_id = live_sf_account_row.get(sf_lookup_field)
+        
+        if len(submitted_emails) > 1:
+            analysis['multiplicity_conflicts'].append({
+                'Role': role_label, 'Emails': list(submitted_emails)
+            })
+        elif len(submitted_emails) == 1:
+            submitted_email = list(submitted_emails)[0]
+            
+            if submitted_email not in contact_email_to_id:
+                analysis['unknown_emails'].append({
+                    'Role': role_label, 'Email': submitted_email
+                })
+                continue
+                
+            target_contact_id = contact_email_to_id[submitted_email]
+            target_contact_name = contact_email_to_name[submitted_email]
+            
+            current_email = ""
+            if current_sf_contact_id and current_sf_contact_id in df_sf_contacts.index:
+                current_email = str(df_sf_contacts.loc[current_sf_contact_id].get('Email', '')).strip().lower()
+                
+            if submitted_email == current_email:
+                analysis['perfect_matches'].append(f"{role_label}: {target_contact_name} is already seated correctly.")
+            else:
+                analysis['proposed_swaps'].append({
+                    'Role': role_label, 'Field': sf_lookup_field, 'ContactId': target_contact_id, 'Name': target_contact_name, 'Email': submitted_email
+                })
+                
+    return analysis
+

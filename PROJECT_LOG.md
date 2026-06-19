@@ -44,3 +44,33 @@ generate_profile_cases_pu.py     update_contact_records.py
                                   ▼
                              [Data Loader Engine]
                              net_new_contacts.csv
+
+Staging State: Phone tracking fields universally formatted to clean dot-notation (312.555.1234). All floating point NaN structural artifacts recursively scrubbed and normalized to clean empty space blocks ("").
+
+Case Generation State: Outputs high-visibility minute-precision system runtime headers (🚨 PROFILE UPDATE PU-XXXXX RECEIVED YYYY-MM-DD HH:MM 🚨) into internal case comments alongside comma-delimited contact lists.
+
+Reconciliation State: Consolidates multiple submissions to single-email instances. Matches numbers seamlessly via a country-code-stripping digit normalizer. Directly automates live writes back into Salesforce for records containing unique title updates against a blank baseline. Silences net-new logs and groups true additions into a separate Data Loader pipeline.
+
+Log updated as of June 2026.
+
+### 4. Automated Post-Update Email Engine (Snapshot-in-Time Pattern)
+* **The State Drift Problem:** Because Contact cleaning and Account Role updates happen sequentially, the live CRM database changes before the notification engine can compile a "Before vs. After" comparison summary for the participant.
+* **The Solution Architecture:** Build a dedicated execution module (`compile_email_payloads.py`) that runs *at the absolute beginning of the pipeline*, immediately after `stage_profile_updates.py` finishes.
+
+#### The Three-Layer Email Data Object (JSON or CSV Buffer):
+For every processed Account, the pipeline will capture and freeze this snapshot data to disk:
+1. **Metadata Block:** Submitter Name, Submitter Email, Account Name, Certification ID.
+2. **The "Before" Snapshot:** Reads the live, untouched Salesforce Account Role fields and grabs the exact names/emails currently occupying those slots.
+3. **The "After" Snapshot:** Copies your pristine, dot-formatted `staged_contact_updates.csv` parameters.
+
+#### The Automation Loop Execution Flow:
+```text
+  [Staged Data Ready] ➡️ [Freeze "Before" Snapshot] ➡️ [Execute CRM Writes] ➡️ [Inject Frozen Delta into Email Template]
+
+  ## 🕵️‍♂️ Edge Cases & System Observations (June 2026 Batch)
+
+* **Profile Expected Lookback Extension:** Expand the Profile Expected query logic window beyond 30 days (potentially to 60 or 90 days) to prevent slower-moving validation cycles from clipping historical context.
+* **Duplicate Case Generation Fault:** Investigate `generate_profile_cases_pu.py` for a race condition where a single Profile Update record spawns two distinct Salesforce Cases. Implement a stricter pre-creation check against the live CRM and local history file.
+* **Roster Monopolization Flag:** Add an auditing rule to flag submissions where all 4 contact roles are occupied by the exact same email address. This indicates an operational single point of failure or lazy form submission behavior.
+* **Ownership vs. Ownership Owner Field Redundancy:** Audit Table A text-block generation logic to determine why both `Ownership` and `Ownership Owner` are being extracted into the narrative block, and streamline how these schema values co-exist.
+

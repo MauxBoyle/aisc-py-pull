@@ -2,6 +2,15 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 from simple_salesforce import Salesforce
+from datetime import datetime, timedelta
+
+# =====================================================================
+# CONFIGURATION TIME WINDOW
+# =====================================================================
+history_days = 60  # Easily adjusted for 30, 60, 90, or 120 days lookback
+
+# Calculate dynamic cutoff timestamp
+cutoff_date = (datetime.now() - timedelta(days=history_days)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 # Load credentials from your root .env file
 load_dotenv()
@@ -13,13 +22,16 @@ sf = Salesforce(
     security_token=os.getenv('SF_TOKEN')
 )
 
+print(f"📡 Fetching historical processing cases created within the last {history_days} days (Cutoff: {cutoff_date})...")
+
+
 # Define the SOQL query using Salesforce's built-in date literal 'LAST_N_DAYS:30'
 # Standard Case object fields: Note that Case Number is 'CaseNumber' (not 'Name')
 query = """
     SELECT Id, CaseNumber, ContactId, AccountId, Status, Subject, CreatedDate, LastModifiedDate 
     FROM Case 
     WHERE (Subject LIKE 'AISC Profile Update for%' OR Subject LIKE 'Profile Update expected for%')
-    AND CreatedDate = LAST_N_DAYS:30
+    AND CreatedDate >= {cutoff_date}
 """
 
 print("📡 Pulling profile update cases from the last 30 days...")

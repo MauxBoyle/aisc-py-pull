@@ -3,7 +3,6 @@ import re
 import pandas as pd
 from dotenv import load_dotenv
 from simple_salesforce import Salesforce
-from utils import propose_account_role_swaps_for_single_account
 
 load_dotenv()
 
@@ -75,42 +74,68 @@ roles_schema_map = {
     'Quality Contact': ('Quality_Email__c', 'Cert_Marketing_contact__c')
 }
 
-print(f"\n🕵️‍♂️ Reconciling Account Roles and posting case audit feeds via centralized utils engine...\n")
+print(f"\n🕵️‍♂️ Reconciling Account Roles and posting case audit feeds...\n")
 
 for account_id, group in grouped_submissions:
-    if account_id not in df_sf_accounts.index: continue
-    
+    if account_id not in df_sf_accounts.index:
+        continue
+        
     sf_acc = df_sf_accounts.loc[account_id]
     account_name = sf_acc['Name']
+    
+    # Locate the target processing case from our history cache file
+    target_case_id = None
+    if not df_history.empty and account_id in df_history.index:
+        # Handle cases where multiple historical rows match the index by grabbing the latest row string
+        case_row = df_history.loc[[account_id]]
+        target_case_id = case_row.iloc[-1]['Id']
+
     print(f"🏢 ACCOUNT: {account_name} [{account_id}]")
     
-    # Call the centralized role matching engine
-    res = propose_account_role_swaps_for_single_account(account_id, group, sf_acc, contact_email_to_id, contact_email_to_name, df_sf_contacts)
-    
+    # Store pending updates to execute in a single unified API hit per Account
     pending_account_updates = {}
     case_chatter_logs = []
-
-    # Handle Perfect Alignments
-    for match in res['perfect_matches']:
-        print(f"     🟢 {match}")
-
-    # Handle Multiplicity Block Exceptions
-    for conflict in res['multiplicity_conflicts']:
-        err = f"🛑 ROLE UPDATE FAILURE [{conflict['Role']}]: Conflict detected. Multiple conflicting emails: {conflict['Emails']}."
-        print(f"     {err}")
-        case_chatter_logs.append(err)
-
-    # Handle Missing Contact Id Warnings
-    for unknown in res['unknown_emails']:
-        err = f"⚠️ ROLE UPDATE FAILURE [{unknown['Role']}]: Email '{unknown['Email']}' does not map to any active Contact ID."
-        print(f"     {err}")
-        case_chatter_logs.append(err)
-
-    # Queue Simple Substitutions
-    for swap in res['proposed_swaps']:
-        print(f"     ⚡ [{swap['Role']}]: Queueing update -> Assigning '{swap['Name']}'")
-        pending_account_updates[swap['Field']] = swap['ContactId']
-        case_chatter_logs.append(f"✅ ROLE UPDATE SUCCESS [{swap['Role']}]: Automatically assigned '{swap['Name']}'.")
+    
+    for role_label, (staging_email_field, sf_lookup_field) in roles_schema_map.items():
+        submitted_emails = set()
+        for _, row in group.iterrows():
+            em = str(row.get(staging_email_field, '')).strip().lower()
+            if em:
+                submitted_emails.add(em)
+                
+        if not submitted_emails:
+            continue
+            
+        current_sf_contact_id = sf_acc.get(sf_lookup_field)
+        
+        # --- SCENARIO 1: MULTIPLICITY EXCEPTION ---
+        if len(submitted_emails) > 1:
+            err_msg = f"🛑 ROLE UPDATE FAILURE [{role_label}]: Conflict detected. Multiple conflicting emails submitted in this batch: {list(submitted_emails)}. Account update aborted for this role."
+            print(f"     {err_msg}")
+            case_chatter_logs.append(err_msg)
+            
+        # --- SCENARIO 2: SINGLE SUBMISSION EVALUATION ---
+        elif len(submitted_emails) == 1:
+            submitted_email = list(submitted_emails)[0]
+            
+            # Sub-Check A: Does the email address match an actual Salesforce Contact?
+            if submitted_email not in contact_email_to_id:
+                err_msg = f"⚠️ ROLE UPDATE FAILURE [{role_label}]: Submitted email '{submitted_email}' does not map to any active Contact ID in Salesforce. Account update aborted."
+                print(f"     {err_msg}")
+                case_chatter_logs.append(err_msg)
+                continue
+                
+            target_contact_id = contact_email_to_id[submitted_email]
+            target_contact_name = contact_email_to_name[submitted_email]
+            
+            # Sub-Check B: Is this an actual change or a redundant update?
+            if target_contact_id == current_sf_contact_id:
+                print(f"     🟢 [{role_label}]: No action required. '{target_contact_name}' is already assigned.")
+            else:
+                # Simple replacement criteria met! Queue it up.
+                print(f"     ⚡ [{role_label}]: Queueing update ➡️ Assigning '{target_contact_name}' ({submitted_email})")
+                pending_account_updates[sf_lookup_field] = target_contact_id
+                case_chatter_logs.append(f"✅ ROLE UPDATE SUCCESS [{role_label}]: Automatically assigned '{target_contact_name}' ({submitted_email}) into this slot.")
 
     # =====================================================================
     # 4. COMMIT EXECUTION PASS TO SALESFORCE CORE

@@ -30,7 +30,7 @@ contacts_raw = sf.query_all("SELECT Id, FirstName, LastName, Email, AccountId, T
 df_contacts = pd.DataFrame(contacts_raw['records']).drop(columns='attributes', errors='ignore')
 
 pu_query = """
-    SELECT Id, Name, Account__c, Certification_ID__c, Type__c, Email__c, Name__c, Status__c, Phone__c, Effective_Date__c,
+    SELECT Id, Name, Account__c, Comments__c, Other_Personnel_Notes__c, Certification_ID__c, Type__c, Email__c, Name__c, Status__c, Phone__c, Effective_Date__c,
            Existing_equipment_moved_to_new_facility__c, Will_new_equipment_be_purchased__c, Will_old_equipment_be_removed__c,
            Will_software_change__c, Will_QMS_or_documentation_change__c, Will_you_change_personnel__c, 
            Did_the_Cert_contact_change__c, Did_the_executive_manager_change__c,

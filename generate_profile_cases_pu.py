@@ -70,22 +70,30 @@ df_pus = pd.concat([df_key_updates, df_contact_updates], ignore_index=True).drop
 def build_comment_blocks(pu_records_list, account_id, multi_note=None):
     acc_row = df_accounts.loc[account_id]
     blocks = []
+
+    # 🛠️ FIXED: Check the correct input parameter name
+    if not pu_records_list:
+        print(f"⚠️ Warning: No profile updates found in list for Account {account_id}. Skipping comment block build.")
+        return ""
+    
+    # 🛠️ FIXED: Define first_row BEFORE using it for the system header
+    first_row = pu_records_list[0]
     
     # --- TEXT BLOCK 00: MINUTE-LEVEL SYSTEM RUNTIME HEADER ---
-    # Generates: "PROFILE UPDATE PU-XXXXX RECEIVED YYYY-MM-DD HH:MM"
     pu_number = first_row.get('Name', 'UNKNOWN_PU')
     submission_time = first_row.get('CreatedDate', datetime.today().strftime('%Y-%m-%d %H:%M'))
     
-    system_header = f"🚨 PROFILE UPDATE {pu_number} RECEIVED {submission_time} 🚨"
+    system_header = f"PROFILE UPDATE {pu_number} RECEIVED {submission_time}"
     blocks.append(system_header)
 
     # 1. Submitter details block
-    first_row = pu_records_list[0]
     submitter_email = str(first_row.get('Email__c', '')).strip().lower()
     matched_contact = df_contacts[df_contacts['Email'].str.lower() == submitter_email]
     
     if matched_contact.empty:
         blocks.append(f"👤 UNMATCHED SUBMITTER DETAILS:\nName: {first_row.get('Name__c')}\nEmail: {first_row.get('Email__c')}")
+
+    # ... The rest of your function code remains exactly the same ...
 
     if multi_note:
         blocks.append(multi_note)
@@ -169,56 +177,57 @@ def build_comment_blocks(pu_records_list, account_id, multi_note=None):
     return "\n**********\n".join(blocks)
 
 # =====================================================================
-# 4. PASS 2 & 3: ROUTING ENGINE (GROUP BY ACCOUNT)
+# 4 & 5. ROUTING & EXECUTION ENGINE (GROUP BY ACCOUNT + UNIQUE PU TAG)
 # =====================================================================
 print(f"⚙️ Evaluating {len(df_pus)} staged Profile Updates against business routing matrices...")
 grouped_stack = df_pus.groupby('Account__c')
 new_history_entries = []
 
 for account_id, group in grouped_stack:
+    if account_id not in df_accounts.index:
+        print(f"🚨 Skipping Orphaned Account ID in Staging: {account_id}")
+        continue
+        
     account_name = df_accounts.loc[account_id, 'Name']
     
+    # Isolate this specific account's history matrix slice
     account_history = df_history[df_history['AccountId'] == account_id]
-    has_expected = account_history['Subject'].str.startswith('Profile Update expected', na=False).any()
-    has_profile_up = account_history['Subject'].str.startswith('AISC Profile Update for', na=False).any()
     
-    first_row = group.iloc[0]
-    submitter_email = str(first_row.get('Email__c', '')).strip().lower()
-    submitter_name = first_row.get('Name__c', '')
-    
-    matched_contact = df_contacts[df_contacts['Email'].str.lower() == submitter_email]
-    contact_id = matched_contact.iloc[0].name if len(matched_contact) == 1 else None
-    
-    # Establish Context Variables
-    target_case_id = None
-    final_comments = ""
-    case_subject = f"AISC Profile Update for {account_name} [{first_row['Name']}]"
-
-    if len(group) == 1:
-        pu_record = group.to_dict('records')[0]
+    # 🌟 NEW LOGIC SWEEP: Loop through each unique Profile Update form name in this group
+    for pu_name in group['Name'].unique():
+        pu_rows = group[group['Name'] == pu_name]
+        pu_list_sorted = pu_rows.sort_values('CreatedDate', ascending=False).to_dict('records')
         
-        if not has_expected and not has_profile_up:
-            final_comments = build_comment_blocks([pu_record], account_id)
-            print(f"💼 Routing Situation 1 (New Case) for {account_name}")
+        pu_tag = f"[{pu_name}]"
+        
+        # Look across all cases for this account to see if ANY subject line contains this PU name string
+        pu_already_logged = False
+        if not account_history.empty:
+            pu_already_logged = account_history['Subject'].astype(str).str.contains(pu_name, regex=False).any()
             
-        elif has_expected:
-            target_case_row = account_history[account_history['Subject'].str.startswith('Profile Update expected')].iloc[0]
-            target_case_id = target_case_row['Id']
-            case_subject = f"AISC Profile Update for {account_name} [{pu_record['Name']}]"
-            final_comments = build_comment_blocks([pu_record], account_id)
-            print(f"🔄 Routing Situation 2 (Append to Case {target_case_row['Case.Name']})")
+        # -----------------------------------------------------------------
+        # RULE 3: ACCOUNT MATCHES & SUBJECT ALREADY CONTAINS TAG ➡️ DO NOTHING
+        # -----------------------------------------------------------------
+        if pu_already_logged:
+            print(f"⏭️  [RULE 3] Filter Match: Case already tracks {pu_tag} for {account_name}. Skipping completely.")
+            continue
             
-        elif has_profile_up:
-            target_case_row = account_history[account_history['Subject'].str.startswith('AISC Profile Update for')].iloc[0]
-            target_case_id = target_case_row['Id']
-            case_subject = f"{target_case_row['Subject']} [{pu_record['Name']}]"
-            final_comments = build_comment_blocks([pu_record], account_id)
-            print(f"📎 Routing Situation 3 (Append to existing Profile Update Case {target_case_row['Case.Name']})")
-
-    else:
-        distinct_emails = group['Email__c'].nunique()
+        # Extract submitter identity context elements
+        first_row = pu_list_sorted[0]
+        submitter_email = str(first_row.get('Email__c', '')).strip().lower()
+        submitter_name = first_row.get('Name__c', '')
+        
+        matched_contact = df_contacts[df_contacts['Email'].str.lower() == submitter_email]
+        contact_id = matched_contact.iloc[0].name if len(matched_contact) == 1 else None
+        
+        # Identify Case history types for conditional logic handling
+        has_expected = account_history['Subject'].str.startswith('Profile Update expected', na=False).any()
+        has_profile_up = account_history['Subject'].str.startswith('AISC Profile Update for', na=False).any()
+        
+        # Compile the text description layout details payload
+        distinct_emails = pu_rows['Email__c'].nunique()
         if distinct_emails > 1:
-            print(f"🚨 Discrepancy Flag: Multiple email submitters for {account_name}. Generating Task.")
+            print(f"🚨 Discrepancy Flag: Multiple email submitters for {account_name} on {pu_tag}. Generating Task.")
             sf.Task.create({
                 'OwnerId': PRIMARY_RESPONDER_ID,
                 'Subject': f"Straighten out conflicting Profile Update submissions: {account_name}",
@@ -226,52 +235,87 @@ for account_id, group in grouped_stack:
             })
             continue
             
-        group_sorted = group.sort_values('CreatedDate', ascending=False)
-        pu_list_sorted = group_sorted.to_dict('records')
-        
-        types = group['Type__c'].fillna('').tolist()
+        types = pu_rows['Type__c'].fillna('').tolist()
         if 'Key Data' in types and '' in types:
-            final_comments = build_comment_blocks(pu_list_sorted, account_id, multi_note="Concatenated Note: Key Data and standard layout variant consolidated below.")
+            final_comments = build_comment_blocks(pu_list_sorted, account_id, multi_note=f"Consolidated Note: Key Data and standard layout variant consolidated below for {pu_tag}.")
         else:
-            final_comments = build_comment_blocks(pu_list_sorted, account_id, multi_note="Multiple Submissions")
+            final_comments = build_comment_blocks(pu_list_sorted, account_id)
             
-        print(f"📦 Routing Situation 4 (Consolidated Multi-Record Base) for {account_name}")
+        # -----------------------------------------------------------------
+        # RULE 1: ACCOUNT HAS NO CASE HISTORY AT ALL ➡️ CREATE BRAND NEW CASE
+        # -----------------------------------------------------------------
+        if account_history.empty and not has_expected and not has_profile_up:
+            case_subject = f"AISC Profile Update for {account_name} {pu_tag}"
+            print(f"🎉 [RULE 1] Creating clean foundational case for {account_name} {pu_tag}...")
+            
+            case_payload = {
+                'Subject': case_subject, 'AccountId': account_id, 'ContactId': contact_id,
+                'OwnerId': CERTIFICATION_QUEUE_ID, 'Primary_Responder__c': PRIMARY_RESPONDER_ID,
+                'Status': 'Pending', 'Origin': 'Participant Portal',
+                'Label_new__c': 'Participant Portal', 'Description': '', 'Form_Email__c': submitter_email
+            }
+            try:
+                res = sf.Case.create(case_payload)
+                new_case_id = res['id']
+                case_num = sf.Case.get(new_case_id)['CaseNumber']
+                print(f"   ✅ Successfully created new case {case_num}")
+                
+                sf.CaseComment.create({
+                    'ParentId': new_case_id, 'CommentBody': final_comments, 'IsPublished': False 
+                })
+                print(f"   🔒 Internal Comments populated for Case {case_num}.")
+                
+                new_case_row = create_history_cache_row(
+                    case_id=new_case_id, case_number=case_num, account_id=account_id,
+                    contact_id=contact_id, case_subject=case_subject
+                )
+                new_history_entries.append(new_case_row)
+                
+                # Update runtime variable state map so subsequent inner loops recognize it instantly
+                df_new_row = pd.DataFrame([new_case_row])
+                account_history = pd.concat([account_history, df_new_row], ignore_index=True)
+                df_history = pd.concat([df_history, df_new_row], ignore_index=True)
+                
+            except Exception as e:
+                print(f"   ❌ Failed to execute baseline Case write generation sequence: {e}")
 
-    # =====================================================================
-    # 5. EXECUTE WRITE ACTIONS (CREATE VS CHATTER APPEND)
-    # =====================================================================
-    if target_case_id:
-        sf.Case.update(target_case_id, {'Subject': case_subject})
-        sf.FeedItem.create({'ParentId': target_case_id, 'Body': final_comments})
-        print(f"📝 Appended data update cleanly to Case {target_case_row['Case.Name']} Chatter feed.")
-    else:
-        case_payload = {
-            'Subject': case_subject, 'AccountId': account_id, 'ContactId': contact_id,
-            'OwnerId': CERTIFICATION_QUEUE_ID, 'Primary_Responder__c': PRIMARY_RESPONDER_ID,
-            'Status': 'Pending', 'Origin': 'Participant Portal',
-            'Label_new__c': 'Participant Portal', 'Description': '' 
-        }
-        res = sf.Case.create(case_payload)
-        new_case_id = res['id']
-        case_num = sf.Case.get(new_case_id)['CaseNumber']
-        print(f"🎉 Successfully created new case {case_num}")
-        
-        comment_payload = {
-            'ParentId': new_case_id,
-            'CommentBody': final_comments,
-            'IsPublished': False 
-        }
-        sf.CaseComment.create(comment_payload)
-        print(f"🔒 Internal Comments populated for Case {case_num}.")
-        
-        new_case_row = create_history_cache_row(
-            case_id=new_case_id,
-            case_number=case_num,
-            account_id=account_id,
-            contact_id=contact_id,
-            case_subject=case_subject
-        )
-        new_history_entries.append(new_case_row)
+        # -----------------------------------------------------------------
+        # RULE 2: ACCOUNT ID MATCHES IN HISTORY ➡️ APPEND CHATTER AND SUBJECT TAG
+        # -----------------------------------------------------------------
+        else:
+            # Pinpoint our precise historical reference case target object row string
+            if has_expected:
+                target_case_row = account_history[account_history['Subject'].str.startswith('Profile Update expected')].iloc[-1]
+                base_subject = f"AISC Profile Update for {account_name}"
+            else:
+                target_case_row = account_history[account_history['Subject'].str.startswith('AISC Profile Update for')].iloc[-1]
+                base_subject = str(target_case_row['Subject']).strip()
+                
+            target_case_id = target_case_row['Id']
+            target_case_num = target_case_row['Case.Name']
+            
+            # Formulate the updated subject line tracking extension string
+            updated_subject = f"{base_subject} {pu_tag}"
+            print(f"📝 [RULE 2] Sub-Update Found! Logging Chatter post to Case {target_case_num}...")
+            
+            try:
+                # 1. Update the live Subject line inside Salesforce
+                sf.Case.update(target_case_id, {'Subject': updated_subject})
+                print(f"   ✅ Updated Case Subject line to track: {pu_tag}")
+                
+                # 2. Drop the text block description directly into Chatter
+                sf.FeedItem.create({
+                    'ParentId': target_case_id, 
+                    'Body': f"⚙️ SYSTEM CONSOLIDATION FEED:\n{final_comments}"
+                })
+                print(f"   ✅ Appended data update cleanly to Case {target_case_num} Chatter feed.")
+                
+                # 3. Mutate our internal historical tracking records so it registers on subsequent scripts
+                df_history.loc[df_history['Id'] == target_case_id, 'Subject'] = updated_subject
+                account_history.loc[account_history['Id'] == target_case_id, 'Subject'] = updated_subject
+                
+            except Exception as e:
+                print(f"   ❌ Failed to execute operational consolidation updates on Case {target_case_num}: {e}")
 
 # =====================================================================
 # 6. COMMIT SYSTEM STATE EXTENSIONS TO CACHE

@@ -1,0 +1,31 @@
+Each script should have:
+
+# Modern OAuth 2.0 Connected App authentication (SOAP-free)
+sf = Salesforce(
+    instance_url='https://yourcompany.my.salesforce.com',
+    client_id=os.getenv('SF_CLIENT_ID'),
+    client_secret=os.getenv('SF_CLIENT_SECRET'),
+    username=os.getenv('SF_USERNAME'),
+    password=os.getenv('SF_PASSWORD')
+)
+
+
+
+my .env should have
+# New SOAP-Free OAuth 2.0 Security Passport Credentials
+SF_CLIENT_ID=3MVG9xx_Your_Long_Consumer_Key_String_Here_xxx
+SF_CLIENT_SECRET=9081234_Your_Hidden_Consumer_Secret_String_Here_xxx
+
+
+
+Sue needs to:
+From Gemini:
+🔑 What to Ask Your IT Administrator
+The Permission Set Fix: Ask her to assign you a Permission Set that includes the "Manage External Client Apps" 
+or "Customize Application" system permissions. This will instantly grant your user profile the clearance to click that button and reveal the keys.
+
+Alternatively (The Direct Hand-off): If your company keeps API secret access restricted strictly to IT administrators, 
+she can simply log in on her end, click Consumer Key and Secret to grab the two strings, and securely hand them off to you 
+to drop straight into your local .env file.
+
+

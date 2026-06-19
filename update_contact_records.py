@@ -3,6 +3,7 @@ import re
 import pandas as pd
 from dotenv import load_dotenv
 from simple_salesforce import Salesforce
+from utils import evaluate_contacts_for_single_account
 
 load_dotenv()
 
@@ -91,104 +92,76 @@ print(f"\n🕵️‍♂️ Running deep verification across unique matched conta
 # Array to hold our Data Loader-ready row payloads
 net_new_contacts_collection = []
 
-for email, staged in unique_staged_contacts.items():
-    account_id = staged['Account_Id']
-    
-    # -----------------------------------------------------------------
-    # VECTOR A: THE EMAIL ADDRESS IS COMPLETELY UNRECOGNIZED (NET NEW)
-    # -----------------------------------------------------------------
-    if email not in df_sf_contacts.index:
-        same_account_mask = df_sf_lookup_base['AccountId'] == account_id
-        same_first_mask = df_sf_lookup_base['FirstName'].astype(str).str.strip().str.lower() == staged['First'].lower()
-        same_last_mask = df_sf_lookup_base['LastName'].astype(str).str.strip().str.lower() == staged['Last'].lower()
-        
-        name_match_in_account = df_sf_lookup_base[same_account_mask & same_first_mask & same_last_mask]
-        
-        if not name_match_in_account.empty:
-            existing_con = name_match_in_account.iloc[0]
-            print(f"⚠️  [EMAIL ROTATION DETECTED] Contact Match Found by Name instead of Email!")
-            print(f"   👤 Profile: {staged['First']} {staged['Last']} [Account ID: {account_id}]")
-            print(f"   📍 CRM Record Saved Email: '{existing_con.get('Email') or '[Blank]'}' ➡️ New: '{email}'")
-            print("-" * 50)
-            print()
-        else:
-            # Cleanly pull the title string out of the uniqueness set
-            submitted_titles = list(staged['Titles_Submitted'])
-            resolved_title = submitted_titles[0] if len(submitted_titles) == 1 else ""
-            
-            print(f"🆕 [TRUE NET NEW CONTACT] Adding to Data Loader Buffer: {staged['First']} {staged['Last']}")
-            
-            # Append row mapped directly to your requested column naming spec
-            net_new_contacts_collection.append({
-                'AccountId': account_id,       # Data Loader maps this to standard Account ID field
-                'FirstName': staged['First'],
-                'LastName': staged['Last'],
-                'Title': resolved_title,
-                'Email': email,
-                'Phone': staged['Phone']
-            })
-            
-        continue 
+print(f"\n🕵️‍♂️ Running deep verification across unique matched contacts via centralized utils engine...\n")
+net_new_contacts_collection = []
+grouped_submissions = df_staged.groupby('Account__c')
 
-    # -----------------------------------------------------------------
-    # VECTOR B: EMAIL MATCH FOUND (STANDARD EXCEPTION BLOCK)
-    # -----------------------------------------------------------------
-    sf_matches = df_sf_contacts.loc[[email]]
+for account_id, group in grouped_submissions:
+    # Run the cannibalized single-account verification engine
+    res = evaluate_contacts_for_single_account(account_id, group, df_sf_contacts, contact_email_to_id, contact_email_to_name)
     
-    for _, sf_con in sf_matches.iterrows():
-        discrepancies = []
-        sf_contact_id = sf_con.get('Id')
+    # 1. Handle Automated Title Patches Instantly
+    for patch in res['automated_title_patches']:
+        print(f"⚡ [AUTOMATION] Updating blank Title for {patch['Email']} to '{patch['TargetTitle']}'...")
+        sf.Contact.update(patch['ContactId'], {'Title': patch['TargetTitle']})
         
-        if staged['First'].lower() != str(sf_con.get('FirstName', '')).strip().lower():
-            discrepancies.append(f"First Name mismatch ('{sf_con.get('FirstName')}' ➡️ '{staged['First']}')")
-        if staged['Last'].lower() != str(sf_con.get('LastName', '')).strip().lower():
-            discrepancies.append(f"Last Name mismatch ('{sf_con.get('LastName')}' ➡️ '{staged['Last']}')")
+    # 2. Output standard console alerts for straightforward manual discrepancies
+    for issue_pkg in res['straightforward_reviews']:
+        print(f"🚨 [DISCREPANCY] Contact Match Found: {issue_pkg['Email']} ({issue_pkg['Name']})")
+        for issue in issue_pkg['Issues']:
+            print(f"     📍 {issue}")
             
-        sf_title = str(sf_con.get('Title', '')).strip()
-        if sf_title.lower() in ['nan', 'none', 'null']: 
-            sf_title = ""
-            
-        submitted_titles = list(staged['Titles_Submitted'])
-        
-        if sf_title == "":
-            if len(submitted_titles) == 1:
-                target_title = submitted_titles[0]
-                print(f"⚡ [AUTOMATION] Updating blank Title for {email} to '{target_title}'...")
-                try:
-                    sf.Contact.update(sf_contact_id, {'Title': target_title})
-                    print(f"   ✅ Successfully updated Salesforce Contact Record: {sf_contact_id}")
-                    sf_title = target_title 
-                except Exception as e:
-                    print(f"   ❌ Failed live database update for {sf_contact_id}: {e}")
-            elif len(submitted_titles) > 1:
-                discrepancies.append(f"Title is blank in Salesforce, but multiple values provided: {submitted_titles}")
-        else:
-            if len(submitted_titles) == 1:
-                staged_title = submitted_titles[0]
-                if staged_title.lower() != sf_title.lower():
-                    discrepancies.append(f"Title modification ('{sf_title}' ➡️ '{staged_title}')")
-            elif len(submitted_titles) > 1:
-                discrepancies.append(f"Title mismatch ('{sf_title}' ➡️ Multiple submitted: {submitted_titles})")
-            
-        if staged['Phone'] != "":
-            norm_staged_phone = normalize_phone_compare(staged['Phone'])
-            norm_sf_phone = normalize_phone_compare(sf_con.get('Phone'))
-            norm_sf_mobile = normalize_phone_compare(sf_con.get('MobilePhone'))
-            
-            if norm_staged_phone == norm_sf_phone:
-                pass 
-            elif norm_staged_phone == norm_sf_mobile:
-                discrepancies.append(f"ℹ️ NOTE: Submitted Phone matches CRM Mobile Phone perfectly ({staged['Phone']})")
-            else:
-                discrepancies.append(f"Phone number mismatch (CRM Main: '{sf_con.get('Phone') or '[Blank]'}', Mobile: '{sf_con.get('MobilePhone') or '[Blank]'}' ➡️ Submitted: '{staged['Phone']}')")
+    # 3. Handle Net New row tracking collections
+    if res['net_new_loader_rows']:
+        for new_row in res['net_new_loader_rows']:
+            print(f"🆕 [TRUE NET NEW CONTACT] Adding to Data Loader Buffer: {new_row['FirstName']} {new_row['LastName']}")
+            net_new_contacts_collection.append(new_row)
 
-        if discrepancies:
-            print(f"🚨 [DISCREPANCY] Contact Match Found: {email}")
-            print(f"   👤 Current Profile: {staged['First']} {staged['Last']}")
-            for bug in discrepancies:
-                print(f"     📍 {bug}")
-            print("-" * 50)
-            print()
+# ... [Keep your final section 5 Data Loader CSV output block exactly the same] ...
+🏢 The Upgraded reconcile_account_roles.py
+Open reconcile_account_roles.py, look inside your main processing loop block, and strip it down to use your centralized utils function:
+
+Python
+# ... [Keep your initial imports, simple_salesforce queries, and history CSV reads intact] ...
+
+from utils import propose_account_role_swaps_for_single_account
+
+print(f"\n🕵️‍♂️ Reconciling Account Roles and posting case audit feeds via centralized utils engine...\n")
+
+for account_id, group in grouped_submissions:
+    if account_id not in df_sf_accounts.index: continue
+    
+    sf_acc = df_sf_accounts.loc[account_id]
+    account_name = sf_acc['Name']
+    print(f"🏢 ACCOUNT: {account_name} [{account_id}]")
+    
+    # Call the centralized role matching engine
+    res = propose_account_role_swaps_for_single_account(account_id, group, sf_acc, contact_email_to_id, contact_email_to_name, df_sf_contacts)
+    
+    pending_account_updates = {}
+    case_chatter_logs = []
+
+    # Handle Perfect Alignments
+    for match in res['perfect_matches']:
+        print(f"     🟢 {match}")
+
+    # Handle Multiplicity Block Exceptions
+    for conflict in res['multiplicity_conflicts']:
+        err = f"🛑 ROLE UPDATE FAILURE [{conflict['Role']}]: Conflict detected. Multiple conflicting emails: {conflict['Emails']}."
+        print(f"     {err}")
+        case_chatter_logs.append(err)
+
+    # Handle Missing Contact Id Warnings
+    for unknown in res['unknown_emails']:
+        err = f"⚠️ ROLE UPDATE FAILURE [{unknown['Role']}]: Email '{unknown['Email']}' does not map to any active Contact ID."
+        print(f"     {err}")
+        case_chatter_logs.append(err)
+
+    # Queue Simple Substitutions
+    for swap in res['proposed_swaps']:
+        print(f"     ⚡ [{swap['Role']}]: Queueing update -> Assigning '{swap['Name']}'")
+        pending_account_updates[swap['Field']] = swap['ContactId']
+        case_chatter_logs.append(f"✅ ROLE UPDATE SUCCESS [{swap['Role']}]: Automatically assigned '{swap['Name']}'.")
 
 # =====================================================================
 # 5. DATA LOADER CSV OUTPUT LAYER (NEW)
@@ -200,4 +173,3 @@ if net_new_contacts_collection:
     print(f"   🎉 SUCCESS: Generated 'net_new_contacts.csv' with {len(df_output)} pristine insert-ready rows.")
 else:
     print("   ℹ️ No true net-new contacts found in this batch to export.")
-    
