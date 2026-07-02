@@ -971,3 +971,214 @@ python-dotenv could not parse statement starting at line 14
 🎉 PIPELINE EXECUTION COMPLETE
 ⏱️ Total Runtime Duration: 0:00:33.443140
 =====================================================================
+bash: line 1: /home/mauxboyle/workspace/aisc-py-pull/.venv/bin/python3: No such file or directory
+bash: line 1: /home/mauxboyle/workspace/aisc-py-pull/.venv/bin/python3: No such file or directory
+bash: line 1: /home/mauxboyle/workspace/aisc-py-pull/.venv/bin/python3: No such file or directory
+
+***Mb fixed scheduler***
+
+/home/mauxboyle/workspace/aisc-profile-updates/.venv/bin/python3: can't open file '/home/mauxboyle/workspace/aisc-profile-updates/sfdata_daily_pipeline.py': [Errno 2] No such file or directory
+Traceback (most recent call last):
+  File "/home/mauxboyle/workspace/aisc-profile-updates/generate_profile_cases_audit.py", line 4, in <module>
+    from dotenv import load_dotenv
+ModuleNotFoundError: No module named 'dotenv'
+=====================================================================
+🚀 STARTING AISC DAILY AUTOMATION PIPELINE: 2026-06-29 12:35:38
+=====================================================================
+
+🏃 Running Module: generate_profile_cases_audit.py ...
+
+❌ CRITICAL CRASH IN MODULE: 'generate_profile_cases_audit.py' failed with exit code 1.
+🛑 Pipeline execution halted immediately to prevent downstream state corruption.
+📋 Loaded 20 accounts with existing 'Expected' cases from history.
+📡 Fetching audits based on true Audit Date (Last 30 Days)...
+⚙️ Evaluating 11 audits against filter matrices...
+⏭️ Filter Match: Case already exists for 'SNS Iron Works, Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Rhoads Industries, Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Rhoads Industries, Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Central Texas Iron Works, Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Supreme Steel Edmonton'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Niik Steel Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Baten Steel Erectors LLC'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Lockport Steel, LLC'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Steel Skies LLC'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Dynamic Fabrication Solutions, LLC'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Dynamic Fabrication Solutions, LLC'. No new case needed.
+
+ℹ️ No new cases were generated. CSV left as-is.
+🏁 Process complete.
+🔌 Connecting to Salesforce...
+📡 Fetching raw submissions and baseline database layers...
+🩺 Healing broken or missing account mappings...
+🏗️ Building Table A: Sanitizing Key Updates...
+🏗️ Building Table B: Sanitizing Contact Roles...
+✅ Staging Matrix Populated.
+   📊 Table A (Key Updates): 3 pristine rows.
+   📊 Table B (Contact Updates): 7 pristine rows.
+💾 Writing pristine staging tables to disk...
+   💾 Generated 'staged_key_updates.csv' (Facility Restricted & NaN Free)
+   💾 Generated 'staged_contact_updates.csv' (Role Restricted & NaN Free)
+📡 Fetching baseline Salesforce records (Accounts & Contacts)...
+💾 Loading sanitized data from local staging tables...
+⚙️ Evaluating 10 staged Profile Updates against business routing matrices...
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056fDh] for PSP Industries, Fulton, MS. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056iwL] for Chenxin Heavy Industry (Jiangsu) Co., Ltd. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056phh] for TEC Industrial Maintenance & Construction. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056Bab] for 44 Iron Design. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056iEn] for Daidung II High-tech Mechanical Corporation. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj00000565LV] for CK Construction. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056kBl] for Cos-Win, Inc.. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056A6f] for Hillsdale Fabricators an Alberici Enterprise. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056a7a] for Parker Manufacturing LLC.. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056fNN] for PSP Industries/ Monotech of Mississippi. Skipping completely.
+
+🏁 State Engine Execution Loop finalized successfully.
+=====================================================================
+🚀 STARTING AISC DAILY AUTOMATION PIPELINE: 2026-06-30 00:01:03
+=====================================================================
+
+🏃 Running Module: generate_profile_cases_audit.py ...
+✅ Module 'generate_profile_cases_audit.py' finished successfully.
+
+🏃 Running Module: stage_profile_updates.py ...
+✅ Module 'stage_profile_updates.py' finished successfully.
+
+🏃 Running Module: generate_profile_cases_pu.py ...
+✅ Module 'generate_profile_cases_pu.py' finished successfully.
+
+=====================================================================
+🎉 PIPELINE EXECUTION COMPLETE
+⏱️ Total Runtime Duration: 0:00:26.312867
+=====================================================================
+📋 Loaded 20 accounts with existing 'Expected' cases from history.
+📡 Fetching audits based on true Audit Date (Last 30 Days)...
+⚙️ Evaluating 11 audits against filter matrices...
+⏭️ Filter Match: Case already exists for 'SNS Iron Works, Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Rhoads Industries, Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Rhoads Industries, Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Central Texas Iron Works, Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Supreme Steel Edmonton'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Niik Steel Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Baten Steel Erectors LLC'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Lockport Steel, LLC'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Steel Skies LLC'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Dynamic Fabrication Solutions, LLC'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Dynamic Fabrication Solutions, LLC'. No new case needed.
+
+ℹ️ No new cases were generated. CSV left as-is.
+🏁 Process complete.
+🔌 Connecting to Salesforce...
+📡 Fetching raw submissions and baseline database layers...
+🩺 Healing broken or missing account mappings...
+🏗️ Building Table A: Sanitizing Key Updates...
+🏗️ Building Table B: Sanitizing Contact Roles...
+✅ Staging Matrix Populated.
+   📊 Table A (Key Updates): 3 pristine rows.
+   📊 Table B (Contact Updates): 9 pristine rows.
+💾 Writing pristine staging tables to disk...
+   💾 Generated 'staged_key_updates.csv' (Facility Restricted & NaN Free)
+   💾 Generated 'staged_contact_updates.csv' (Role Restricted & NaN Free)
+📡 Fetching baseline Salesforce records (Accounts & Contacts)...
+💾 Loading sanitized data from local staging tables...
+⚙️ Evaluating 12 staged Profile Updates against business routing matrices...
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056fDh] for PSP Industries, Fulton, MS. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056iwL] for Chenxin Heavy Industry (Jiangsu) Co., Ltd. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056phh] for TEC Industrial Maintenance & Construction. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056Bab] for 44 Iron Design. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056iEn] for Daidung II High-tech Mechanical Corporation. Skipping completely.
+🎉 [RULE 1] Creating clean foundational case for Cambi UK Limited [a12Qj0000057Dk1]...
+   ✅ Successfully created new case 00351468
+   🔒 Internal Comments populated for Case 00351468.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj00000565LV] for CK Construction. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056kBl] for Cos-Win, Inc.. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056A6f] for Hillsdale Fabricators an Alberici Enterprise. Skipping completely.
+🎉 [RULE 1] Creating clean foundational case for Markle Manufacturing [a12Qj0000057FPF]...
+   ✅ Successfully created new case 00351469
+   🔒 Internal Comments populated for Case 00351469.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056a7a] for Parker Manufacturing LLC.. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056fNN] for PSP Industries/ Monotech of Mississippi. Skipping completely.
+💾 Updated local tracking cache file 'pu_cases_1mhistory.csv'.
+
+🏁 State Engine Execution Loop finalized successfully.
+=====================================================================
+🚀 STARTING AISC DAILY AUTOMATION PIPELINE: 2026-07-01 00:01:03
+=====================================================================
+
+🏃 Running Module: generate_profile_cases_audit.py ...
+✅ Module 'generate_profile_cases_audit.py' finished successfully.
+
+🏃 Running Module: stage_profile_updates.py ...
+✅ Module 'stage_profile_updates.py' finished successfully.
+
+🏃 Running Module: generate_profile_cases_pu.py ...
+✅ Module 'generate_profile_cases_pu.py' finished successfully.
+
+=====================================================================
+🎉 PIPELINE EXECUTION COMPLETE
+⏱️ Total Runtime Duration: 0:00:33.173329
+=====================================================================
+📋 Loaded 20 accounts with existing 'Expected' cases from history.
+📡 Fetching audits based on true Audit Date (Last 30 Days)...
+⚙️ Evaluating 10 audits against filter matrices...
+⏭️ Filter Match: Case already exists for 'SNS Iron Works, Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Rhoads Industries, Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Rhoads Industries, Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Central Texas Iron Works, Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Supreme Steel Edmonton'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Niik Steel Inc.'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Baten Steel Erectors LLC'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Lockport Steel, LLC'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Steel Skies LLC'. No new case needed.
+⏭️ Filter Match: Case already exists for 'Dynamic Fabrication Solutions, LLC'. No new case needed.
+
+ℹ️ No new cases were generated. CSV left as-is.
+🏁 Process complete.
+🔌 Connecting to Salesforce...
+📡 Fetching raw submissions and baseline database layers...
+🩺 Healing broken or missing account mappings...
+🏗️ Building Table A: Sanitizing Key Updates...
+🏗️ Building Table B: Sanitizing Contact Roles...
+✅ Staging Matrix Populated.
+   📊 Table A (Key Updates): 3 pristine rows.
+   📊 Table B (Contact Updates): 10 pristine rows.
+💾 Writing pristine staging tables to disk...
+   💾 Generated 'staged_key_updates.csv' (Facility Restricted & NaN Free)
+   💾 Generated 'staged_contact_updates.csv' (Role Restricted & NaN Free)
+📡 Fetching baseline Salesforce records (Accounts & Contacts)...
+💾 Loading sanitized data from local staging tables...
+⚙️ Evaluating 13 staged Profile Updates against business routing matrices...
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056fDh] for PSP Industries, Fulton, MS. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056iwL] for Chenxin Heavy Industry (Jiangsu) Co., Ltd. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056phh] for TEC Industrial Maintenance & Construction. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056Bab] for 44 Iron Design. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056iEn] for Daidung II High-tech Mechanical Corporation. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000057Dk1] for Cambi UK Limited. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj00000565LV] for CK Construction. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056kBl] for Cos-Win, Inc.. Skipping completely.
+🎉 [RULE 1] Creating clean foundational case for Egger Steel Company [a12Qj0000057Sr7]...
+   ✅ Successfully created new case 00351617
+   🔒 Internal Comments populated for Case 00351617.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056A6f] for Hillsdale Fabricators an Alberici Enterprise. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000057FPF] for Markle Manufacturing. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056a7a] for Parker Manufacturing LLC.. Skipping completely.
+⏭️  [RULE 3] Filter Match: Case already tracks [a12Qj0000056fNN] for PSP Industries/ Monotech of Mississippi. Skipping completely.
+💾 Updated local tracking cache file 'pu_cases_1mhistory.csv'.
+
+🏁 State Engine Execution Loop finalized successfully.
+=====================================================================
+🚀 STARTING AISC DAILY AUTOMATION PIPELINE: 2026-07-02 00:01:03
+=====================================================================
+
+🏃 Running Module: generate_profile_cases_audit.py ...
+✅ Module 'generate_profile_cases_audit.py' finished successfully.
+
+🏃 Running Module: stage_profile_updates.py ...
+✅ Module 'stage_profile_updates.py' finished successfully.
+
+🏃 Running Module: generate_profile_cases_pu.py ...
+✅ Module 'generate_profile_cases_pu.py' finished successfully.
+
+=====================================================================
+🎉 PIPELINE EXECUTION COMPLETE
+⏱️ Total Runtime Duration: 0:00:28.460202
+=====================================================================

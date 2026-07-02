@@ -20,7 +20,7 @@ sf = Salesforce(
 )
 
 # --- STEP 2: LOAD CURRENT CASES (The Duplicate Filter Set) ---
-history_filename = 'pu_cases_1mhistory.csv'
+history_filename = 'pu_cases_history.csv'
 try:
     df_history = pd.read_csv(history_filename)
     expected_mask = df_history['Subject'].str.startswith('Profile Update expected', na=False)
